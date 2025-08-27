@@ -179,7 +179,7 @@ async def get_chart_data(periodo: str):
                     else:
                         day_gastos += t["monto"]
             elif periodo == "semanal":
-                week_start = datetime.strptime(date_str, "%Y-%m-%d")
+                week_start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                 week_end = week_start + timedelta(days=7)
                 if week_start <= t_date < week_end:
                     if t["tipo"] == "ingreso":
