@@ -16,9 +16,14 @@
     display: block !important;
   }
   
+  .print-report {
+    background: white !important;
+  }
+  
   body {
-    font-size: 12pt;
-    line-height: 1.4;
+    font-size: 10pt;
+    line-height: 1.3;
+    color: black !important;
   }
   
   .bg-white {
@@ -33,12 +38,58 @@
     border: 1px solid #000 !important;
   }
   
+  .border-gray-300 {
+    border-color: #000 !important;
+  }
+  
   .rounded-xl, .rounded-lg {
     border-radius: 0 !important;
   }
   
   button {
     display: none !important;
+  }
+  
+  .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-500 {
+    color: black !important;
+  }
+  
+  .bg-green-50, .bg-red-50, .bg-blue-50, .bg-yellow-50, .bg-gray-50 {
+    background: white !important;
+  }
+  
+  .text-green-600, .text-green-700, .text-green-800 {
+    color: #166534 !important;
+  }
+  
+  .text-red-600, .text-red-700, .text-red-800 {
+    color: #dc2626 !important;
+  }
+  
+  .text-blue-600, .text-blue-700, .text-blue-800 {
+    color: #2563eb !important;
+  }
+  
+  .print-content {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  
+  table {
+    border-collapse: collapse !important;
+  }
+  
+  th, td {
+    border: 1px solid #000 !important;
+    padding: 4pt !important;
+  }
+  
+  h1, h2, h3 {
+    page-break-after: avoid !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
   }
 }
 
@@ -57,4 +108,65 @@
 .currency-large {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* Estilos para el contador de efectivo */
+.cash-counter-bill {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.cash-counter-coin {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+/* Estilos para tabs */
+.tab-active {
+  border-bottom-color: #3b82f6;
+  color: #3b82f6;
+}
+
+/* Responsividad mejorada */
+@media (max-width: 768px) {
+  .grid-cols-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .lg\:col-span-2 {
+    grid-column: span 2 / span 2;
+  }
+  
+  .grid-cols-1.lg\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mejoras visuales */
+.card-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.card-shadow:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Estilos para gráficas */
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+/* Loading states */
+.loading-spinner {
+  border: 4px solid #f3f4f6;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
