@@ -107,39 +107,48 @@ user_problem_statement: "Aplicación para gestionar gastos e ingresos en Colombi
 backend:
   - task: "API para transacciones CRUD"
     implemented: true
-    working: "needs_testing"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "needs_testing"
         agent: "main"
         comment: "Implementado endpoints para crear y listar transacciones con categorías colombianas"
+      - working: true
+        agent: "testing"
+        comment: "✅ CRUD APIs funcionando correctamente. Probado: POST /api/transactions (ingreso $500,000 COP salario, gasto $150,000 COP alimentacion), GET /api/transactions. Respuestas con estructura correcta, IDs UUID, fechas ISO, categorías colombianas validadas."
 
   - task: "API dashboard stats por período"
     implemented: true
-    working: "needs_testing"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "needs_testing"
         agent: "main"
         comment: "Implementado endpoint para obtener estadísticas por período (diario, semanal, mensual)"
+      - working: true
+        agent: "testing"
+        comment: "✅ Stats API funcionando correctamente. Probado GET /api/dashboard/stats/{periodo} para diario, semanal, mensual. Cálculos correctos: ingresos $1,000,000, gastos $300,000, balance $700,000 positivo. Manejo de períodos inválidos con error 400."
 
   - task: "API datos para gráficas"
     implemented: true
-    working: "needs_testing"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "needs_testing"
         agent: "main"
         comment: "Implementado endpoint para obtener datos formateados para Chart.js"
+      - working: true
+        agent: "testing"
+        comment: "✅ Chart data API funcionando correctamente. Probado GET /api/dashboard/chart-data/{periodo} para todos los períodos. Estructura correcta con labels, ingresos, gastos arrays. Datos mensuales (6 meses), semanales (4 semanas), diarios (7 días). Fijo menor: timezone issue en comparación semanal resuelto."
 
 frontend:
   - task: "Dashboard con gráficas Chart.js"
