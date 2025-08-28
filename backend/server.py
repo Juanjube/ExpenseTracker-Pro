@@ -64,6 +64,14 @@ class TransactionCreate(BaseModel):
     monto: float
     categoria: TransactionCategory
     descripcion: Optional[str] = None
+    fecha: Optional[datetime] = None
+
+class TransactionUpdate(BaseModel):
+    tipo: Optional[TransactionType] = None
+    monto: Optional[float] = None
+    categoria: Optional[TransactionCategory] = None
+    descripcion: Optional[str] = None
+    fecha: Optional[datetime] = None
 
 class CashCount(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -78,6 +86,8 @@ class CashCount(BaseModel):
     monedas_200: int = 0
     monedas_100: int = 0
     monedas_50: int = 0
+    total_billetes: float
+    total_monedas: float
     total_calculado: float
     descripcion: Optional[str] = None
     fecha: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -95,6 +105,7 @@ class CashCountCreate(BaseModel):
     monedas_100: int = 0
     monedas_50: int = 0
     descripcion: Optional[str] = None
+    fecha: Optional[datetime] = None
 
 class DashboardStats(BaseModel):
     total_ingresos: float
@@ -115,6 +126,12 @@ class DetailedReport(BaseModel):
     periodo: str
     fecha_generacion: datetime
 
+class CashSummary(BaseModel):
+    total_billetes: float
+    total_monedas: float
+    total_efectivo: float
+    ultimo_conteo: Optional[datetime] = None
+
 # Helper functions
 def prepare_for_mongo(data):
     if isinstance(data.get('fecha'), datetime):
@@ -126,23 +143,31 @@ def parse_from_mongo(item):
         item['fecha'] = datetime.fromisoformat(item['fecha'])
     return item
 
-def calculate_cash_total(cash_data: CashCountCreate) -> float:
-    """Calcular el total del conteo de efectivo"""
-    total = 0
+def calculate_cash_totals(cash_data: CashCountCreate) -> Dict[str, float]:
+    """Calcular totales separados de billetes y monedas"""
+    total_billetes = 0
+    total_monedas = 0
+    
     # Billetes
-    total += cash_data.billetes_100000 * 100000
-    total += cash_data.billetes_50000 * 50000
-    total += cash_data.billetes_20000 * 20000
-    total += cash_data.billetes_10000 * 10000
-    total += cash_data.billetes_5000 * 5000
-    total += cash_data.billetes_2000 * 2000
+    total_billetes += cash_data.billetes_100000 * 100000
+    total_billetes += cash_data.billetes_50000 * 50000
+    total_billetes += cash_data.billetes_20000 * 20000
+    total_billetes += cash_data.billetes_10000 * 10000
+    total_billetes += cash_data.billetes_5000 * 5000
+    total_billetes += cash_data.billetes_2000 * 2000
+    
     # Monedas
-    total += cash_data.monedas_1000 * 1000
-    total += cash_data.monedas_500 * 500
-    total += cash_data.monedas_200 * 200
-    total += cash_data.monedas_100 * 100
-    total += cash_data.monedas_50 * 50
-    return total
+    total_monedas += cash_data.monedas_1000 * 1000
+    total_monedas += cash_data.monedas_500 * 500
+    total_monedas += cash_data.monedas_200 * 200
+    total_monedas += cash_data.monedas_100 * 100
+    total_monedas += cash_data.monedas_50 * 50
+    
+    return {
+        "total_billetes": total_billetes,
+        "total_monedas": total_monedas,
+        "total_calculado": total_billetes + total_monedas
+    }
 
 # Routes
 @api_router.get("/")
@@ -152,6 +177,8 @@ async def root():
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(input: TransactionCreate):
     transaction_dict = input.dict()
+    if not transaction_dict.get('fecha'):
+        transaction_dict['fecha'] = datetime.now(timezone.utc)
     transaction_obj = Transaction(**transaction_dict)
     transaction_data = prepare_for_mongo(transaction_obj.dict())
     await db.transactions.insert_one(transaction_data)
@@ -163,22 +190,71 @@ async def get_transactions(limit: int = 100):
     parsed_transactions = [parse_from_mongo(t) for t in transactions]
     return [Transaction(**t) for t in parsed_transactions]
 
+@api_router.get("/transactions/{transaction_id}", response_model=Transaction)
+async def get_transaction(transaction_id: str):
+    transaction = await db.transactions.find_one({"id": transaction_id})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transacción no encontrada")
+    parsed_transaction = parse_from_mongo(transaction)
+    return Transaction(**parsed_transaction)
+
+@api_router.put("/transactions/{transaction_id}", response_model=Transaction)
+async def update_transaction(transaction_id: str, update_data: TransactionUpdate):
+    # Buscar la transacción existente
+    existing_transaction = await db.transactions.find_one({"id": transaction_id})
+    if not existing_transaction:
+        raise HTTPException(status_code=404, detail="Transacción no encontrada")
+    
+    # Preparar datos de actualización (solo los campos que no son None)
+    update_dict = {}
+    for key, value in update_data.dict().items():
+        if value is not None:
+            update_dict[key] = value
+    
+    if update_dict:
+        # Preparar fecha para MongoDB si está presente
+        if 'fecha' in update_dict:
+            update_dict['fecha'] = update_dict['fecha'].isoformat()
+        
+        # Actualizar en la base de datos
+        await db.transactions.update_one(
+            {"id": transaction_id},
+            {"$set": update_dict}
+        )
+    
+    # Retornar la transacción actualizada
+    updated_transaction = await db.transactions.find_one({"id": transaction_id})
+    parsed_transaction = parse_from_mongo(updated_transaction)
+    return Transaction(**parsed_transaction)
+
+@api_router.delete("/transactions/{transaction_id}")
+async def delete_transaction(transaction_id: str):
+    result = await db.transactions.delete_one({"id": transaction_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Transacción no encontrada")
+    return {"message": "Transacción eliminada exitosamente"}
+
 @api_router.post("/cash-count", response_model=CashCount)
 async def create_cash_count(input: CashCountCreate):
-    total = calculate_cash_total(input)
+    totals = calculate_cash_totals(input)
     cash_dict = input.dict()
-    cash_dict['total_calculado'] = total
+    cash_dict.update(totals)
+    
+    if not cash_dict.get('fecha'):
+        cash_dict['fecha'] = datetime.now(timezone.utc)
+        
     cash_obj = CashCount(**cash_dict)
     cash_data = prepare_for_mongo(cash_obj.dict())
     await db.cash_counts.insert_one(cash_data)
     
-    # Agregar automáticamente como transacción de ingreso
-    if total > 0:
+    # Agregar automáticamente como transacción de ingreso si hay efectivo
+    if totals['total_calculado'] > 0:
         transaction_data = {
             "tipo": "ingreso",
-            "monto": total,
+            "monto": totals['total_calculado'],
             "categoria": "efectivo_contado",
-            "descripcion": f"Conteo de efectivo - {cash_obj.descripcion or 'Sin descripción'}"
+            "descripcion": f"Conteo de efectivo - Billetes: {totals['total_billetes']:,.0f}, Monedas: {totals['total_monedas']:,.0f}. {cash_obj.descripcion or ''}".strip(),
+            "fecha": cash_obj.fecha
         }
         transaction_obj = Transaction(**transaction_data)
         transaction_mongo = prepare_for_mongo(transaction_obj.dict())
@@ -191,6 +267,27 @@ async def get_cash_counts():
     cash_counts = await db.cash_counts.find().sort("fecha", -1).to_list(50)
     parsed_counts = [parse_from_mongo(c) for c in cash_counts]
     return [CashCount(**c) for c in parsed_counts]
+
+@api_router.get("/cash-summary", response_model=CashSummary)
+async def get_cash_summary():
+    """Obtener resumen de efectivo (último conteo)"""
+    latest_count = await db.cash_counts.find_one(sort=[("fecha", -1)])
+    
+    if not latest_count:
+        return CashSummary(
+            total_billetes=0,
+            total_monedas=0,
+            total_efectivo=0,
+            ultimo_conteo=None
+        )
+    
+    parsed_count = parse_from_mongo(latest_count)
+    return CashSummary(
+        total_billetes=parsed_count.get('total_billetes', 0),
+        total_monedas=parsed_count.get('total_monedas', 0),
+        total_efectivo=parsed_count.get('total_calculado', 0),
+        ultimo_conteo=parsed_count.get('fecha')
+    )
 
 @api_router.get("/dashboard/stats/{periodo}")
 async def get_dashboard_stats(periodo: str):

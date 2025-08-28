@@ -40,6 +40,15 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+// Función para formatear fecha
+const formatDate = (date) => {
+  return new Date(date).toLocaleDateString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+};
+
 // Mapeo de categorías en español
 const categoryLabels = {
   salario: 'Salario',
@@ -59,7 +68,7 @@ const categoryLabels = {
   otros_gastos: 'Otros Gastos'
 };
 
-// Componente Contador de Efectivo
+// Componente Contador de Efectivo Mejorado
 const CashCounter = ({ onClose, onSave }) => {
   const [cashData, setCashData] = useState({
     billetes_100000: 0,
@@ -73,7 +82,8 @@ const CashCounter = ({ onClose, onSave }) => {
     monedas_200: 0,
     monedas_100: 0,
     monedas_50: 0,
-    descripcion: ''
+    descripcion: '',
+    fecha: new Date().toISOString().slice(0, 16)
   });
 
   const billetes = [
@@ -93,12 +103,23 @@ const CashCounter = ({ onClose, onSave }) => {
     { key: 'monedas_50', label: '$50', value: 50 }
   ];
 
-  const calculateTotal = () => {
-    let total = 0;
-    [...billetes, ...monedas].forEach(item => {
-      total += cashData[item.key] * item.value;
+  const calculateTotals = () => {
+    let totalBilletes = 0;
+    let totalMonedas = 0;
+    
+    billetes.forEach(billete => {
+      totalBilletes += cashData[billete.key] * billete.value;
     });
-    return total;
+    
+    monedas.forEach(moneda => {
+      totalMonedas += cashData[moneda.key] * moneda.value;
+    });
+    
+    return {
+      totalBilletes,
+      totalMonedas,
+      totalGeneral: totalBilletes + totalMonedas
+    };
   };
 
   const handleQuantityChange = (key, value) => {
@@ -113,7 +134,12 @@ const CashCounter = ({ onClose, onSave }) => {
     e.preventDefault();
     
     try {
-      await axios.post(`${API}/cash-count`, cashData);
+      const submitData = {
+        ...cashData,
+        fecha: new Date(cashData.fecha).toISOString()
+      };
+      
+      await axios.post(`${API}/cash-count`, submitData);
       onSave();
       onClose();
     } catch (error) {
@@ -122,11 +148,11 @@ const CashCounter = ({ onClose, onSave }) => {
     }
   };
 
-  const total = calculateTotal();
+  const totals = calculateTotals();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-bold text-gray-900">💰 Contador de Efectivo</h3>
@@ -141,6 +167,29 @@ const CashCounter = ({ onClose, onSave }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Fecha y Descripción */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha y Hora</label>
+                <input
+                  type="datetime-local"
+                  value={cashData.fecha}
+                  onChange={(e) => setCashData(prev => ({ ...prev, fecha: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Descripción (opcional)</label>
+                <input
+                  type="text"
+                  value={cashData.descripcion}
+                  onChange={(e) => setCashData(prev => ({ ...prev, descripcion: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ej: Conteo caja registradora mañana"
+                />
+              </div>
+            </div>
+
             {/* Billetes */}
             <div>
               <h4 className="text-lg font-semibold text-gray-800 mb-4">💵 Billetes</h4>
@@ -178,6 +227,11 @@ const CashCounter = ({ onClose, onSave }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="mt-4 p-4 bg-green-100 rounded-lg">
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-green-800">Total Billetes: {formatCurrency(totals.totalBilletes)}</div>
+                </div>
               </div>
             </div>
 
@@ -219,26 +273,22 @@ const CashCounter = ({ onClose, onSave }) => {
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Total */}
-            <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
-              <div className="text-center">
-                <div className="text-lg text-blue-700 mb-2">Total Efectivo</div>
-                <div className="text-4xl font-bold text-blue-900">{formatCurrency(total)}</div>
+              <div className="mt-4 p-4 bg-yellow-100 rounded-lg">
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-yellow-800">Total Monedas: {formatCurrency(totals.totalMonedas)}</div>
+                </div>
               </div>
             </div>
 
-            {/* Descripción */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Descripción (opcional)</label>
-              <input
-                type="text"
-                value={cashData.descripcion}
-                onChange={(e) => setCashData(prev => ({ ...prev, descripcion: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ej: Conteo caja registradora mañana"
-              />
+            {/* Total General */}
+            <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
+              <div className="text-center">
+                <div className="text-lg text-blue-700 mb-2">Total Efectivo</div>
+                <div className="text-4xl font-bold text-blue-900">{formatCurrency(totals.totalGeneral)}</div>
+                <div className="text-sm text-blue-600 mt-2">
+                  Billetes: {formatCurrency(totals.totalBilletes)} | Monedas: {formatCurrency(totals.totalMonedas)}
+                </div>
+              </div>
             </div>
 
             {/* Botones */}
@@ -264,210 +314,14 @@ const CashCounter = ({ onClose, onSave }) => {
   );
 };
 
-// Componente Reporte Detallado
-const DetailedReport = ({ periodo, onClose }) => {
-  const [reportData, setReportData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchReportData();
-  }, [periodo]);
-
-  const fetchReportData = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API}/reports/detailed/${periodo}`);
-      setReportData(response.data);
-    } catch (error) {
-      console.error('Error fetching report:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
-        <div className="text-xl">Generando reporte...</div>
-      </div>
-    );
-  }
-
-  if (!reportData) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 bg-white z-50 overflow-auto print-report">
-      <div className="max-w-4xl mx-auto p-8">
-        {/* Header - No Print */}
-        <div className="no-print mb-6 flex justify-between items-center border-b pb-4">
-          <h2 className="text-2xl font-bold">Reporte Detallado</h2>
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              Imprimir
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-
-        {/* Report Content */}
-        <div className="print-content">
-          {/* Header del Reporte */}
-          <div className="text-center mb-8 border-b-2 border-gray-300 pb-4">
-            <h1 className="text-3xl font-bold text-gray-900">💰 Gestión Financiera</h1>
-            <p className="text-lg text-gray-600 mt-2">Reporte {reportData.periodo.charAt(0).toUpperCase() + reportData.periodo.slice(1)}</p>
-            <p className="text-sm text-gray-500">Generado el {new Date(reportData.fecha_generacion).toLocaleString('es-CO')}</p>
-          </div>
-
-          {/* Resumen Financiero */}
-          <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4 text-gray-800">📊 Resumen Financiero</h2>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="bg-green-50 p-4 rounded-lg text-center border">
-                <div className="text-sm text-green-700">Total Ingresos</div>
-                <div className="text-2xl font-bold text-green-800">{formatCurrency(reportData.stats.total_ingresos)}</div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg text-center border">
-                <div className="text-sm text-red-700">Total Gastos</div>
-                <div className="text-2xl font-bold text-red-800">{formatCurrency(reportData.stats.total_gastos)}</div>
-              </div>
-              <div className={`p-4 rounded-lg text-center border ${reportData.stats.balance >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
-                <div className={`text-sm ${reportData.stats.balance >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>Balance</div>
-                <div className={`text-2xl font-bold ${reportData.stats.balance >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
-                  {formatCurrency(reportData.stats.balance)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Ingresos por Categoría */}
-          {reportData.ingresos_por_categoria.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4 text-gray-800">💚 Ingresos por Categoría</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full border border-gray-300">
-                  <thead className="bg-green-50">
-                    <tr>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Categoría</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Monto</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Porcentaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.ingresos_por_categoria.map((cat, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
-                        <td className="border border-gray-300 px-4 py-2">{categoryLabels[cat.categoria] || cat.categoria}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right font-semibold">{formatCurrency(cat.total)}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{cat.porcentaje.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Gastos por Categoría */}
-          {reportData.gastos_por_categoria.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4 text-gray-800">💸 Gastos por Categoría</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full border border-gray-300">
-                  <thead className="bg-red-50">
-                    <tr>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Categoría</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Monto</th>
-                      <th className="border border-gray-300 px-4 py-2 text-right">Porcentaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData.gastos_por_categoria.map((cat, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
-                        <td className="border border-gray-300 px-4 py-2">{categoryLabels[cat.categoria] || cat.categoria}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right font-semibold">{formatCurrency(cat.total)}</td>
-                        <td className="border border-gray-300 px-4 py-2 text-right">{cat.porcentaje.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Transacciones Recientes */}
-          <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4 text-gray-800">📝 Transacciones Recientes</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border border-gray-300 text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border border-gray-300 px-3 py-2 text-left">Fecha</th>
-                    <th className="border border-gray-300 px-3 py-2 text-left">Tipo</th>
-                    <th className="border border-gray-300 px-3 py-2 text-left">Categoría</th>
-                    <th className="border border-gray-300 px-3 py-2 text-right">Monto</th>
-                    <th className="border border-gray-300 px-3 py-2 text-left">Descripción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData.transacciones_recientes.slice(0, 15).map((trans, idx) => (
-                    <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
-                      <td className="border border-gray-300 px-3 py-2">
-                        {new Date(trans.fecha).toLocaleDateString('es-CO')}
-                      </td>
-                      <td className="border border-gray-300 px-3 py-2">
-                        <span className={`px-2 py-1 rounded text-xs ${trans.tipo === 'ingreso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {trans.tipo === 'ingreso' ? '💚 Ingreso' : '💸 Gasto'}
-                        </span>
-                      </td>
-                      <td className="border border-gray-300 px-3 py-2">{categoryLabels[trans.categoria] || trans.categoria}</td>
-                      <td className="border border-gray-300 px-3 py-2 text-right font-semibold">{formatCurrency(trans.monto)}</td>
-                      <td className="border border-gray-300 px-3 py-2">{trans.descripcion || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Componente Dashboard Principal
-const Dashboard = () => {
-  const [stats, setStats] = useState(null);
-  const [chartData, setChartData] = useState(null);
-  const [categoryStats, setCategoryStats] = useState({ ingresos: [], gastos: [] });
-  const [selectedPeriod, setSelectedPeriod] = useState('mensual');
-  const [chartType, setChartType] = useState('bar');
-  const [transactions, setTransactions] = useState([]);
-  const [showAddTransaction, setShowAddTransaction] = useState(false);
-  const [showCashCounter, setShowCashCounter] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
-
-  const [newTransaction, setNewTransaction] = useState({
+// Componente Modal para Editar/Agregar Transacciones
+const TransactionModal = ({ transaction, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
     tipo: 'gasto',
     monto: '',
     categoria: 'otros_gastos',
-    descripcion: ''
+    descripcion: '',
+    fecha: new Date().toISOString().slice(0, 16)
   });
 
   const categorias = {
@@ -493,9 +347,172 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (transaction) {
+      // Modo edición
+      setFormData({
+        tipo: transaction.tipo,
+        monto: transaction.monto.toString(),
+        categoria: transaction.categoria,
+        descripcion: transaction.descripcion || '',
+        fecha: new Date(transaction.fecha).toISOString().slice(0, 16)
+      });
+    }
+  }, [transaction]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.monto || formData.monto <= 0) {
+      alert('Por favor ingrese un monto válido');
+      return;
+    }
+
+    try {
+      const submitData = {
+        ...formData,
+        monto: parseFloat(formData.monto),
+        fecha: new Date(formData.fecha).toISOString()
+      };
+
+      if (transaction) {
+        // Actualizar transacción existente
+        await axios.put(`${API}/transactions/${transaction.id}`, submitData);
+      } else {
+        // Crear nueva transacción
+        await axios.post(`${API}/transactions`, submitData);
+      }
+      
+      onSave();
+      onClose();
+    } catch (error) {
+      console.error('Error guardando transacción:', error);
+      alert('Error al guardar la transacción');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">
+              {transaction ? 'Editar Transacción' : 'Nueva Transacción'}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha y Hora</label>
+              <input
+                type="datetime-local"
+                value={formData.fecha}
+                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+              <select
+                value={formData.tipo}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  tipo: e.target.value,
+                  categoria: e.target.value === 'ingreso' ? 'otros_ingresos' : 'otros_gastos'
+                })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="gasto">Gasto</option>
+                <option value="ingreso">Ingreso</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Monto (COP)</label>
+              <input
+                type="number"
+                value={formData.monto}
+                onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="0"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
+              <select
+                value={formData.categoria}
+                onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {categorias[formData.tipo].map((cat) => (
+                  <option key={cat.value} value={cat.value}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Descripción (opcional)</label>
+              <input
+                type="text"
+                value={formData.descripcion}
+                onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Descripción de la transacción"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {transaction ? 'Actualizar' : 'Agregar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente Dashboard Principal
+const Dashboard = () => {
+  const [stats, setStats] = useState(null);
+  const [chartData, setChartData] = useState(null);
+  const [categoryStats, setCategoryStats] = useState({ ingresos: [], gastos: [] });
+  const [cashSummary, setCashSummary] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('mensual');
+  const [chartType, setChartType] = useState('bar');
+  const [transactions, setTransactions] = useState([]);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [showCashCounter, setShowCashCounter] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
     fetchDashboardData();
     fetchTransactions();
     fetchCategoryStats();
+    fetchCashSummary();
   }, [selectedPeriod]);
 
   const fetchDashboardData = async () => {
@@ -537,34 +554,37 @@ const Dashboard = () => {
     }
   };
 
-  const handleAddTransaction = async (e) => {
-    e.preventDefault();
-    
-    if (!newTransaction.monto || newTransaction.monto <= 0) {
-      alert('Por favor ingrese un monto válido');
-      return;
-    }
-
+  const fetchCashSummary = async () => {
     try {
-      await axios.post(`${API}/transactions`, {
-        ...newTransaction,
-        monto: parseFloat(newTransaction.monto)
-      });
-      
-      setNewTransaction({
-        tipo: 'gasto',
-        monto: '',
-        categoria: 'otros_gastos',
-        descripcion: ''
-      });
-      setShowAddTransaction(false);
-      
-      await fetchDashboardData();
-      await fetchTransactions();
-      await fetchCategoryStats();
+      const response = await axios.get(`${API}/cash-summary`);
+      setCashSummary(response.data);
     } catch (error) {
-      console.error('Error adding transaction:', error);
-      alert('Error al agregar la transacción');
+      console.error('Error fetching cash summary:', error);
+    }
+  };
+
+  const handleSaveTransaction = async () => {
+    await fetchDashboardData();
+    await fetchTransactions();
+    await fetchCategoryStats();
+    await fetchCashSummary();
+    setEditingTransaction(null);
+  };
+
+  const handleEditTransaction = (transaction) => {
+    setEditingTransaction(transaction);
+    setShowTransactionModal(true);
+  };
+
+  const handleDeleteTransaction = async (transactionId) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
+      try {
+        await axios.delete(`${API}/transactions/${transactionId}`);
+        await handleSaveTransaction();
+      } catch (error) {
+        console.error('Error deleting transaction:', error);
+        alert('Error al eliminar la transacción');
+      }
     }
   };
 
@@ -572,6 +592,7 @@ const Dashboard = () => {
     await fetchDashboardData();
     await fetchTransactions();
     await fetchCategoryStats();
+    await fetchCashSummary();
   };
 
   if (!stats || !chartData) {
@@ -691,7 +712,7 @@ const Dashboard = () => {
         {activeTab === 'dashboard' && (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -736,28 +757,48 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+              {/* Cash Summary Cards */}
+              {cashSummary && (
+                <>
+                  <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-gray-600 mb-1">💵 Billetes</p>
+                      <p className="text-lg font-bold text-green-700">{formatCurrency(cashSummary.total_billetes)}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-gray-600 mb-1">🪙 Monedas</p>
+                      <p className="text-lg font-bold text-yellow-600">{formatCurrency(cashSummary.total_monedas)}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col gap-2">
                 <button
-                  onClick={() => setShowAddTransaction(true)}
-                  className="w-full h-full flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
+                  onClick={() => {
+                    setEditingTransaction(null);
+                    setShowTransactionModal(true);
+                  }}
+                  className="flex-1 flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
                 >
                   <div className="text-center">
-                    <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    <p className="font-medium text-sm">Agregar Transacción</p>
+                    <p className="font-medium text-xs">Transacción</p>
                   </div>
                 </button>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                
                 <button
                   onClick={() => setShowCashCounter(true)}
-                  className="w-full h-full flex items-center justify-center text-green-600 hover:text-green-800 transition-colors"
+                  className="flex-1 flex items-center justify-center text-green-600 hover:text-green-800 transition-colors"
                 >
                   <div className="text-center">
-                    <div className="text-2xl mb-2">💰</div>
-                    <p className="font-medium text-sm">Contar Efectivo</p>
+                    <div className="text-lg mb-1">💰</div>
+                    <p className="font-medium text-xs">Efectivo</p>
                   </div>
                 </button>
               </div>
@@ -794,13 +835,13 @@ const Dashboard = () => {
                 </div>
 
                 <button
-                  onClick={() => setShowReport(true)}
+                  onClick={() => window.print()}
                   className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  Reporte Detallado
+                  Imprimir
                 </button>
               </div>
             </div>
@@ -864,7 +905,10 @@ const Dashboard = () => {
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-xl font-semibold">📝 Historial de Transacciones</h3>
               <button
-                onClick={() => setShowAddTransaction(true)}
+                onClick={() => {
+                  setEditingTransaction(null);
+                  setShowTransactionModal(true);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -884,13 +928,19 @@ const Dashboard = () => {
                         <th className="text-left py-3 px-4 font-semibold">Categoría</th>
                         <th className="text-right py-3 px-4 font-semibold">Monto</th>
                         <th className="text-left py-3 px-4 font-semibold">Descripción</th>
+                        <th className="text-center py-3 px-4 font-semibold">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.slice(0, 20).map((trans, idx) => (
+                      {transactions.slice(0, 50).map((trans, idx) => (
                         <tr key={trans.id} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
                           <td className="py-3 px-4">
-                            {new Date(trans.fecha).toLocaleDateString('es-CO')}
+                            <div className="text-sm">
+                              {formatDate(trans.fecha)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(trans.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
                           </td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded text-xs ${trans.tipo === 'ingreso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -900,6 +950,28 @@ const Dashboard = () => {
                           <td className="py-3 px-4">{categoryLabels[trans.categoria] || trans.categoria}</td>
                           <td className="py-3 px-4 text-right font-semibold">{formatCurrency(trans.monto)}</td>
                           <td className="py-3 px-4">{trans.descripcion || '-'}</td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => handleEditTransaction(trans)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="Editar"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTransaction(trans.id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="Eliminar"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -916,107 +988,21 @@ const Dashboard = () => {
       </div>
 
       {/* Modales */}
-      {showAddTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Nueva Transacción</h3>
-                <button
-                  onClick={() => setShowAddTransaction(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <form onSubmit={handleAddTransaction} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                  <select
-                    value={newTransaction.tipo}
-                    onChange={(e) => setNewTransaction({
-                      ...newTransaction,
-                      tipo: e.target.value,
-                      categoria: e.target.value === 'ingreso' ? 'otros_ingresos' : 'otros_gastos'
-                    })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="gasto">Gasto</option>
-                    <option value="ingreso">Ingreso</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Monto (COP)</label>
-                  <input
-                    type="number"
-                    value={newTransaction.monto}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, monto: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="0"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
-                  <select
-                    value={newTransaction.categoria}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, categoria: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {categorias[newTransaction.tipo].map((cat) => (
-                      <option key={cat.value} value={cat.value}>{cat.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Descripción (opcional)</label>
-                  <input
-                    type="text"
-                    value={newTransaction.descripcion}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, descripcion: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Descripción de la transacción"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddTransaction(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Agregar
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+      {showTransactionModal && (
+        <TransactionModal
+          transaction={editingTransaction}
+          onClose={() => {
+            setShowTransactionModal(false);
+            setEditingTransaction(null);
+          }}
+          onSave={handleSaveTransaction}
+        />
       )}
 
       {showCashCounter && (
         <CashCounter
           onClose={() => setShowCashCounter(false)}
           onSave={handleCashCountSave}
-        />
-      )}
-
-      {showReport && (
-        <DetailedReport
-          periodo={selectedPeriod}
-          onClose={() => setShowReport(false)}
         />
       )}
     </div>
